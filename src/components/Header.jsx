@@ -1,7 +1,9 @@
 import React from "react";
 import { Poppins, Caveat } from "next/font/google";
 import { FaCircleUser } from "react-icons/fa6";
+import { RiHandHeartFill } from "react-icons/ri";
 import Image from "next/image";
+import Link from "next/link";
 
 const poppinsFont = Poppins({ subsets: ["latin"], weight: "400" });
 const caveatFont = Caveat({
@@ -24,15 +26,22 @@ function Header() {
           height={95}
           priority
         />
-        <span className={`font-[700] ${caveatFont.className} text-4xl`}>
-          ResQ-Forces
-        </span>
+        <Link href="/">
+          <span className={`font-[700] ${caveatFont.className} text-4xl`}>
+            ResQ-Forces
+          </span>
+        </Link>
       </div>
+      <Link href="/emergency-page">
+        <RiHandHeartFill size={45} className="hover:cursor-pointer" />
+      </Link>
       <div className="flex flex-row items-center justify-center gap-x-6">
         <span className="font-medium text-gray-500 text-xl hover:cursor-pointer">
           FAQ
         </span>
-        <FaCircleUser size={30} />
+        <Link href="/profile-page">
+          <FaCircleUser size={30} className="hover:cursor-pointer" />
+        </Link>
       </div>
     </div>
   );
