@@ -1,12 +1,15 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { GrAed } from "react-icons/gr";
 import Image from "next/image";
+import { triggerLiveLocationAtom } from "@/jotai/EmergencyPageAtoms";
+import { useAtom } from "jotai";
 
 const REGIONS = {
   WEST: { center: [1.3404, 103.709], zoom: 14 },
@@ -41,9 +44,14 @@ const createCustomClusterIcon = (cluster) => {
 };
 
 export default function SingaporeMap() {
+  //   const searchParams = useSearchParams();
   const [aedLocations, setAedLocations] = useState([]);
-  const [map, setMap] = useState(null); // Reference to the map instance
+  const [map, setMap] = useState(null);
+  const [userLocation, setUserLocation] = useState(null);
   const center = [1.3521, 103.8198];
+  const [triggerLiveLocation, setTriggerLiveLocation] = useAtom(
+    triggerLiveLocationAtom
+  );
 
   useEffect(() => {
     const loadLocalData = async () => {
@@ -58,6 +66,17 @@ export default function SingaporeMap() {
     loadLocalData();
   }, []);
 
+  useEffect(() => {
+    if (triggerLiveLocation == true && map) {
+      goToLiveLocation();
+      const timer = setTimeout(() => {
+        goToLiveLocation();
+        setTriggerLiveLocation(false); // Reset the trigger
+      }, 500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [triggerLiveLocation, map]);
   const goToRegion = (regionKey) => {
     if (map) {
       const { center, zoom } = REGIONS[regionKey];
@@ -66,6 +85,37 @@ export default function SingaporeMap() {
         duration: 1.5, // Seconds for the transition
       });
     }
+  };
+
+  const goToLiveLocation = () => {
+    if (!map) return;
+
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        const newPos = [latitude, longitude];
+
+        // Update state to show the marker
+        setUserLocation(newPos);
+
+        // Move the map to the location
+        map.flyTo(newPos, 18, {
+          animate: true,
+          duration: 2,
+          easeLinearity: 0.25,
+        });
+      },
+      (error) => {
+        console.error("Error detecting location:", error);
+        alert("Unable to retrieve location.");
+      },
+      { enableHighAccuracy: true }
+    );
   };
 
   return (
@@ -110,7 +160,7 @@ export default function SingaporeMap() {
         }
       `}</style>
 
-      <div className="w-full max-w-5xl mb-6">
+      <div className="w-full max-w-[90%] mb-6 flex flex-col items-start">
         <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
           AED Distribution Zones
         </h1>
@@ -119,7 +169,7 @@ export default function SingaporeMap() {
         </p>
       </div>
 
-      <div className="h-[70vh] w-full max-w-5xl rounded-xl overflow-hidden shadow-2xl border-4 border-white">
+      <div className="h-[70vh] w-full max-w-[90%] rounded-xl overflow-hidden shadow-2xl border-4 border-white">
         <MapContainer
           center={center}
           zoom={12}
@@ -127,9 +177,41 @@ export default function SingaporeMap() {
           ref={setMap}
         >
           <TileLayer
-            attribution="&copy; OpenStreetMap"
+            attribution="© OpenStreetMap"
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
+
+          {/* 1. YOUR LIVE LOCATION MARKER (Outside the cluster group) */}
+          {userLocation && (
+            <Marker
+              position={userLocation}
+              icon={L.divIcon({
+                className: "user-location-marker",
+                html: `
+                <div class="relative flex items-center justify-center">
+
+                  <div class="absolute w-10 h-10 bg-red-500 rounded-full animate-ping opacity-40"></div>
+                  
+
+                  <div class="relative w-5 h-5 bg-red-600 rounded-full border-2 border-white shadow-[0_0_10px_rgba(220,38,38,0.5)]"></div>
+                  
+
+                  <div class="absolute w-1.5 h-1.5 bg-white rounded-full"></div>
+                </div>
+              `,
+                iconSize: [40, 40],
+                iconAnchor: [20, 20],
+              })}
+            >
+              <Popup>
+                <div className="p-1 text-center">
+                  <span className="text-xs font-black uppercase text-red-600 tracking-tighter">
+                    You are here
+                  </span>
+                </div>
+              </Popup>
+            </Marker>
+          )}
 
           <MarkerClusterGroup
             chunkedLoading
@@ -144,8 +226,7 @@ export default function SingaporeMap() {
 
               if (!lat || !lng) return null;
 
-              // Construct the Google Maps URL
-              const gMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+              const gMapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 
               return (
                 <Marker
@@ -154,37 +235,62 @@ export default function SingaporeMap() {
                   icon={blueAedIcon}
                 >
                   <Popup>
-                    <div className="p-1 min-w-[200px]">
-                      <h3 className="font-bold text-blue-600 border-b pb-1 mb-1 text-xs">
-                        💙 AED STATION
-                      </h3>
-                      <p className="text-sm font-bold text-slate-900">
-                        {info.BUILDING_NAME}
-                      </p>
-                      <p className="text-[10px] text-slate-500 mt-1 leading-tight">
-                        {info.AED_LOCATION_DESCRIPTION}
-                      </p>
-
-                      <div className="mt-2 pt-2 border-t flex justify-between text-[9px] font-bold text-slate-400">
-                        <span>POSTAL: {info.POSTAL_CODE}</span>
-                        <span>
-                          LEVEL: {info.AED_LOCATION_FLOOR_LEVEL || "N/A"}
-                        </span>
+                    <div className="p-2 min-w-[220px] font-sans">
+                      <div className="flex items-center gap-2 mb-2 border-b pb-2 border-slate-100">
+                        <GrAed className="text-red-600" size={20} />
+                        <h3 className="font-bold text-slate-800 text-sm">
+                          AED Station
+                        </h3>
                       </div>
 
-                      {/* GOOGLE MAPS REDIRECT BUTTON */}
+                      {/* Corrected Keys below: */}
+                      <div className="space-y-2 mb-4">
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-slate-400">
+                            Building
+                          </p>
+                          <p className="text-xs font-semibold text-slate-800">
+                            {info.BUILDING_NAME || "Unnamed Building"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-slate-400">
+                            Exact Location
+                          </p>
+                          <p className="text-xs text-slate-600 leading-tight">
+                            {info.AED_LOCATION_DESCRIPTION ||
+                              "Refer to map pin"}
+                          </p>
+                        </div>
+
+                        <div className="flex gap-4">
+                          <div>
+                            <p className="text-[10px] uppercase font-bold text-slate-400">
+                              Level
+                            </p>
+                            <p className="text-xs font-bold text-blue-600">
+                              {info.AED_LOCATION_FLOOR_LEVEL || "N/A"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] uppercase font-bold text-slate-400">
+                              Postal
+                            </p>
+                            <p className="text-xs text-slate-600">
+                              {info.POSTAL_CODE}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
                       <a
-                        href={gMapsUrl}
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="gmaps-button"
+                        className="flex items-center justify-center gap-2 bg-red-600 !text-white text-xs font-bold py-2.5 rounded-lg hover:bg-red-700 transition-all shadow-md active:scale-95"
                       >
-                        <img
-                          src="https://www.gstatic.com/images/branding/product/1x/maps_96dp.png"
-                          alt="G"
-                          width="14"
-                        />
-                        GET DIRECTIONS
+                        Navigate Now
                       </a>
                     </div>
                   </Popup>
@@ -195,7 +301,7 @@ export default function SingaporeMap() {
         </MapContainer>
       </div>
 
-      <div className="absolute top-80 left-6/7 -translate-x-1/2 z-[1000] flex flex-row items-center gap-x-3 backdrop-blur-md p-2 rounded-xl shadow-2xl border-1 border-slate-300 bg-white">
+      <div className="absolute top-80 right-[10%] -translate-x-1/2 z-[1000] flex flex-row gap-x-3 backdrop-blur-md p-2 rounded-xl shadow-2xl border-1 border-slate-300 bg-white fix">
         <GrAed size={50} />
       </div>
       <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-[1000] flex flex-row items-center gap-x-3 bg-white/80 backdrop-blur-md p-2 rounded-full shadow-2xl border border-white/20">
@@ -225,6 +331,13 @@ export default function SingaporeMap() {
           className="hover:cursor-pointer flex items-center gap-x-2 bg-slate-800 hover:bg-slate-700 text-white px-6 py-2.5 rounded-full text-sm font-bold transition-all active:scale-95 shadow-md"
         >
           <span>↓</span> South
+        </button>
+
+        <button
+          onClick={goToLiveLocation}
+          className="hover:cursor-pointer flex items-center gap-x-2 btn btn-info hover:bg-blue-700 text-white px-6 py-2.5 rounded-full text-sm font-bold transition-all active:scale-95 shadow-md"
+        >
+          <span>📍</span> Live
         </button>
 
         {/* Reset Button (Ghost Style) */}

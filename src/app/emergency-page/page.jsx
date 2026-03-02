@@ -1,6 +1,8 @@
 "use client";
 import EmergencyPage from "@/components/EmergencyPage";
 import React from "react";
+import { useState } from "react";
+import ReportModal from "@/components/ReportModal";
 
 function page() {
   return (
