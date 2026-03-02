@@ -18,7 +18,7 @@ const MapWithNoSSR = dynamic(() => import("./ReportMap"), {
 function requiredCertsForIncident(incidentType) {
   if (incidentType === "fire") return ["FFC", "FSM"];
   if (incidentType === "cardiac_arrest") return ["CPR", "AED"];
-  if (incidentType === "not_responding") return ["CPR", "AED"];
+  if (incidentType === "unknown") return ["CPR", "AED"];
   if (incidentType === "car_accident") return ["CPR", "AED"];
   return [];
 }
@@ -91,15 +91,30 @@ function ReportModal({ isOpen, onClose }) {
       console.log("[Report] responderIds:", responderIds);
 
       // 4) Build alerts (exclude reporter)
+      //   const alertsToInsert = responderIds
+      //     .filter((rid) => rid && rid !== user.id)
+      //     .map((rid) => ({
+      //       incident_id: incident.id,
+      //       responder_id: rid,
+      //       status: "sent",
+      //     }));
+      // CHANGE IT TO THIS:
+      // Add this temporarily to see EVERYONE who is a responder
+      const { data: allResponders } = await supabase
+        .from("responder_verifications")
+        .select("user_id, cert_type, status");
+
+      console.log("DEBUG - Every single responder in DB:", allResponders);
+      // 4) Build alerts (Now excluding yourself correctly)
       const alertsToInsert = responderIds
-        .filter((rid) => rid && rid !== user.id)
+        .filter((rid) => rid !== user.id) // ✅ This prevents YOU from getting your own alert
         .map((rid) => ({
           incident_id: incident.id,
           responder_id: rid,
           status: "sent",
         }));
 
-      console.log("[Report] alertsToInsert:", alertsToInsert);
+      console.log("[Report] alertsToInsert (filtered):", alertsToInsert);
 
       // 5) Insert alerts
       if (alertsToInsert.length > 0) {

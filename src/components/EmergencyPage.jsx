@@ -160,6 +160,23 @@ function EmergencyPage() {
       }
 
       // 2. Subscribe to new alerts
+      //   channel = supabase
+      //     .channel("rt-incident-alerts")
+      //     .on(
+      //       "postgres_changes",
+      //       { event: "INSERT", schema: "public", table: "incident_alerts" },
+      //       (payload) => {
+      //         const row = payload.new;
+      //         if (row.responder_id === user.id && row.status === "sent") {
+      //           setActiveAlert(row);
+      //           playAlarm();
+      //           fetchIncident(row.incident_id);
+      //         }
+      //       }
+      //     )
+      //     .subscribe();
+      // Change lines 142-150 to this for testing:
+
       channel = supabase
         .channel("rt-incident-alerts")
         .on(
@@ -167,6 +184,8 @@ function EmergencyPage() {
           { event: "INSERT", schema: "public", table: "incident_alerts" },
           (payload) => {
             const row = payload.new;
+
+            // ✅ ONLY show the alert if the responder_id matches the person logged in
             if (row.responder_id === user.id && row.status === "sent") {
               setActiveAlert(row);
               playAlarm();
